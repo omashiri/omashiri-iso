@@ -1,42 +1,10 @@
 name: Nightly ISO Build
 
-# Every night, for each lane: installs an ISO unattended and boots what it
-# installed (the install test), turns that installed disk into a VM image, and
-# publishes it with a latest.json saying what is in it.
-#
-#   edge    the ISO is built here, from the edge channel: its packages, its
-#           mirrors and the edge builds of Omarchy (omarchy-dev)
-#   edge-aarch64
-#           the same for aarch64, on the ARM runner with KVM: the ISO is built
-#           from the edge channel, booted, installed, and installed again as an
-#           N1x. Only the ISO is published, no VM image yet.
-#   stable  the ISO is the last release: omacom/omarchy's latest release names
-#           the version, iso.omarchy.org has the ISO, its signature is checked.
-#           Done once for each release, skipped on the nights after.
-#
-#   https://nightly.omarchy.org/<channel>/latest.json
-#   https://nightly.omarchy.org/edge/<version>/omarchy-edge-<version>.iso
-#   https://nightly.omarchy.org/edge/<version>/omarchy-edge-<version>.qcow2
-#   https://nightly.omarchy.org/edge/<version>/unpacked/    kernel, initramfs, vm-boot
-#   https://nightly.omarchy.org/stable/<version>/<run>/omarchy-<version>.qcow2
-#   https://nightly.omarchy.org/stable/<version>/<run>/unpacked/
-#   https://nightly.omarchy.org/edge-aarch64/<version>/omarchy-edge-<version>-aarch64.iso
-#
-# Nothing is published unless the ISO installed and the image passed its
-# checks. A version's files are written once and never replaced: the CDN keeps
-# them for a year. Only latest.json changes, and it is written last.
-#
-# No pull_request trigger: this workflow holds the key to the bucket, so it
-# never runs for a fork. To try a change, run it by hand on a branch; that
-# builds and checks everything and publishes nothing.
+# Manually build and test the edge ISO and the latest upstream stable ISO.
+# Keep the checked images, checksums and install logs as GitHub artifacts.
 
 on:
   workflow_dispatch:
-    inputs:
-      publish:
-        description: "Publish to nightly.omarchy.org (only from quattro)"
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -45,11 +13,8 @@ concurrency:
   group: nightly-${{ github.ref }}
   cancel-in-progress: false
 
-env:
-  SITE: https://nightly.omarchy.org
-
 jobs:
-  # Which channels this run makes, under which version, and where each goes:
+  # Which channels this run builds and tests, under which version:
   # test/vm-image/nightly-plan decides, from what is fetched here.
   plan:
     name: Plan
@@ -66,9 +31,8 @@ jobs:
         run: |
           set -euo pipefail
           release=$(gh api repos/omacom/omarchy/releases/latest --jq .tag_name)
-          published=$(curl -fsL "$SITE/stable/latest.json?run=$GITHUB_RUN_ID" | jq -r .version || true)
           channels=$(./test/vm-image/nightly-plan "$(date -u +%Y.%m.%d)" "${{ github.run_number }}" "${{ github.run_attempt }}" \
-            "$GITHUB_EVENT_NAME" "$release" "$published")
+            "$GITHUB_EVENT_NAME" "$release")
           echo "channels=$channels" | tee -a "$GITHUB_OUTPUT"
 
   build:
@@ -78,8 +42,7 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(needs.plan.outputs.channels) }}
-    # aarch64 runs on Linux on Apple Silicon: the ARM runners that have KVM.
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-26.04
     timeout-minutes: 90
     env:
       CHANNEL: ${{ matrix.channel }}
@@ -203,7 +166,7 @@ jobs:
             done
           } >>"$GITHUB_STEP_SUMMARY"
 
-      - name: Keep the release for the publish job
+      - name: Keep the checked build artifacts
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: nightly-${{ matrix.channel }}-${{ github.run_id }}
@@ -235,94 +198,3 @@ jobs:
             vm-packages.txt
           if-no-files-found: ignore
           retention-days: 14
-
-  # The only job that holds the bucket's key, and it builds nothing: it copies
-  # what the job above made, checks what the CDN then serves, and only then
-  # points latest.json at it.
-  # One channel failing does not hold back the other: each is published if
-  # its own build left a release behind.
-  publish:
-    name: Publish ${{ matrix.channel }}
-    needs: [plan, build]
-    if: ${{ !cancelled() && github.ref == 'refs/heads/quattro' && (github.event_name == 'schedule' || inputs.publish) }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJSON(needs.plan.outputs.channels) }}
-    runs-on: ubuntu-26.04
-    timeout-minutes: 45
-    environment: nightly
-    # actions: read is for finding and fetching the build job's artifact.
-    permissions:
-      contents: read
-      actions: read
-    env:
-      CHANNEL: ${{ matrix.channel }}
-      VERSION: ${{ matrix.version }}
-      RELEASE: ${{ matrix.release }}
-      RCLONE_CONFIG_R2_TYPE: s3
-      RCLONE_CONFIG_R2_PROVIDER: Cloudflare
-      RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-      RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-      RCLONE_CONFIG_R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
-      BUCKET: omarchy-nightly
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          sparse-checkout: test/vm-image
-          persist-credentials: false
-
-      # Not the download action: GitHub's storage limits each connection to a
-      # few megabytes a second, and the action took 10 minutes over 4.6 GB.
-      # nightly-fetch takes the same artifact over 16 connections.
-      - name: Fetch the release from the build job
-        env:
-          GH_TOKEN: ${{ github.token }}
-          # Not /tmp: on Ubuntu 26.04 it is held in memory, and the zip is
-          # gigabytes.
-          TMPDIR: ${{ runner.temp }}
-        run: |
-          df -h "$TMPDIR" .
-          command -v aria2c unzip >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq aria2 unzip >/dev/null; }
-          ./test/vm-image/nightly-fetch "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "nightly-$CHANNEL-$GITHUB_RUN_ID" out
-
-      # A current rclone, by version and checksum. Ubuntu's is 1.60 from 2022:
-      # with it R2 answered every first upload "501 Not Implemented", though
-      # it had stored the file, and the publish only passed on rclone's retry.
-      # 1.60 sends "x-amz-acl: private" with each upload; current rclone does
-      # not send it to Cloudflare.
-      # Not RCLONE_VERSION: rclone reads every RCLONE_<FLAG> variable as that
-      # flag, and "--version=v1.75.2" stops it before it does anything.
-      - name: rclone
-        env:
-          PINNED_RCLONE: v1.75.2
-          PINNED_RCLONE_SHA256: efbfe852181f7191eb3c9043ed1ab49c9b2d0ba045c61c926a5da111c939ec5c
-        run: |
-          set -euo pipefail
-          [ -n "$RCLONE_CONFIG_R2_ACCESS_KEY_ID" ] || { echo "::error::the nightly environment has no bucket key"; exit 1; }
-          curl -fsSL --retry 3 -o rclone.deb "https://github.com/rclone/rclone/releases/download/$PINNED_RCLONE/rclone-$PINNED_RCLONE-linux-amd64.deb"
-          echo "$PINNED_RCLONE_SHA256  rclone.deb" | sha256sum -c -
-          sudo dpkg -i rclone.deb >/dev/null
-          rclone version | head -1
-
-      # --immutable: a name that exists with other bytes is an error, not an
-      # overwrite.
-      # nightly-rclone is rclone, with a warning on the run's page when an
-      # upload only passed on a retry: the files are compared afterwards either
-      # way, but it should not go unnoticed again.
-      - name: Upload this version
-        run: |
-          ./test/vm-image/nightly-rclone copy "out/$RELEASE" "r2:$BUCKET/$RELEASE" \
-            --immutable --s3-no-check-bucket --transfers 8 --s3-upload-concurrency 8 --s3-chunk-size 64M --stats 30s --stats-one-line
-
-      # Fetched the way a user fetches them. It proves what is served, and it
-      # is the first request the CDN sees for each file.
-      - name: Check what the CDN serves
-        run: ./test/vm-image/nightly-check-cdn "out/$RELEASE" "$SITE/$RELEASE"
-
-      - name: Point latest.json at it
-        run: |
-          ./test/vm-image/nightly-rclone copyto "out/$CHANNEL/latest.json" "r2:$BUCKET/$CHANNEL/latest.json" --s3-no-check-bucket
-          served=$(curl -fsSL "$SITE/$CHANNEL/latest.json?run=$GITHUB_RUN_ID" | jq -r .version)
-          [ "$served" = "$VERSION" ] || { echo "::error::latest.json serves version $served, expected $VERSION"; exit 1; }
-          echo "Published [$VERSION]($SITE/$CHANNEL/latest.json)" >>"$GITHUB_STEP_SUMMARY"

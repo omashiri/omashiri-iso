@@ -38,52 +38,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Our Namespace runners are for people we trust, by the rule omarchy-pkgs
-  # builds by: a collaborator with write access, or someone in
-  # .github/VOUCHED.td (read from the default branch, so a pull request cannot
-  # vouch for itself). Whether the pull request comes from a fork does not
-  # matter. Anyone else gets GitHub's runner.
-  #
-  # This chooses the runner for an honest pull request. It does not stop a
-  # dishonest one: GitHub runs a pull request's own copy of this file, which
-  # can ask for any runner. What stops that is the repository holding outside
-  # contributors' workflow runs until a maintainer approves them (Settings,
-  # Actions, "Approval for running fork pull request workflows").
-  trust:
-    name: "Is the author trusted to use our runners"
-    runs-on: ubuntu-26.04
-    outputs:
-      trusted: ${{ steps.gate.outputs.trusted }}
-    steps:
-      # A lookup that fails must not stop the test: the author is then
-      # untrusted and the test runs on GitHub's runner.
-      - id: vouch
-        if: github.event_name == 'pull_request'
-        continue-on-error: true
-        uses: mitchellh/vouch/action/check-user@d66fa29a64600490892131ad87597c30c91fcac4 # v1
-        with:
-          user: ${{ github.event.pull_request.user.login }}
-          allow-fail: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - id: gate
-        env:
-          # A push to quattro or a manual run is ours already.
-          STATUS: ${{ github.event_name != 'pull_request' && 'ours' || steps.vouch.outputs.status }}
-          AUTHOR: ${{ github.event.pull_request.user.login || github.actor }}
-        run: |
-          case "$STATUS" in
-            ours | collaborator | vouched) trusted=true ;;
-            # Any GitHub App's account counts as a bot, so only the ones that
-            # work in this repository are trusted.
-            bot) case "$AUTHOR" in 'dependabot[bot]' | 'github-actions[bot]') trusted=true ;; *) trusted=false ;; esac ;;
-            *) trusted=false ;;
-          esac
-          # Omashiri has no Namespace runners; the GitHub artifact actions are used throughout.
-          trusted=false
-          echo "trusted=$trusted" >>"$GITHUB_OUTPUT"
-          echo "$AUTHOR: $STATUS, trusted=$trusted" | tee -a "$GITHUB_STEP_SUMMARY"
-
   # One build job per architecture, both with the same steps, so that each
   # architecture's install jobs wait for their own ISO only: a job that needs
   # a matrix job waits for every leg, and one architecture's failed build
@@ -91,8 +45,7 @@ jobs:
   # runner: what one pull request leaves the next run would trust.
   build-x86_64:
     name: "x86_64: build the ISO"
-    needs: trust
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-26.04
     timeout-minutes: 60
     env:
       ARCH: x86_64
@@ -138,12 +91,9 @@ jobs:
       # the attempt: "Re-run failed jobs" does not run a passed build again,
       # and the install jobs it does rerun fetch the ISO the earlier attempt
       # uploaded. A build that runs again replaces its ISO, as a name is
-      # unique within a run. On Namespace's runners it stays in Namespace's
-      # artifact storage, next to the install jobs that read it; Namespace's
-      # actions only work there, so GitHub's runner keeps GitHub's.
+      # unique within a run.
       - name: Hand the ISO to the install jobs
-        if: needs.trust.outputs.trusted == 'true'
-        uses: namespace-actions/upload-artifact@f6ccaacc655aec41b93af180d1d7eef21af862d2 # v1.0.3
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: iso-${{ github.run_id }}-${{ env.ARCH }}
           overwrite: true
@@ -155,22 +105,10 @@ jobs:
           # left.
           retention-days: 7
 
-      - name: Hand the ISO to the install jobs (GitHub's runner)
-        if: needs.trust.outputs.trusted != 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: iso-${{ github.run_id }}-${{ env.ARCH }}
-          overwrite: true
-          path: |
-            release/*.iso
-            test-runs/build-seconds
-          compression-level: 0
-          retention-days: 7
-
   install:
     name: "x86_64: ${{ matrix.variant }}"
-    needs: [trust, build-x86_64]
-    runs-on: [self-hosted, Linux, X64]
+    needs: build-x86_64
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     strategy:
       fail-fast: false
@@ -252,13 +190,6 @@ jobs:
           persist-credentials: false
 
       - name: Fetch the ISO
-        if: needs.trust.outputs.trusted == 'true'
-        uses: namespace-actions/download-artifact@7cbad919e4b0e09f17e9d6311a444ff002992b5b # v2.0.1
-        with:
-          name: iso-${{ github.run_id }}-x86_64
-
-      - name: Fetch the ISO (GitHub's runner)
-        if: needs.trust.outputs.trusted != 'true'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: iso-${{ github.run_id }}-x86_64
@@ -440,8 +371,8 @@ jobs:
   # still runs those checks and the LUKS-sector check before it stops.
   free-space:
     name: "x86_64: free-space install"
-    needs: [trust, build-x86_64]
-    runs-on: [self-hosted, Linux, X64]
+    needs: build-x86_64
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -450,13 +381,6 @@ jobs:
           persist-credentials: false
 
       - name: Fetch the ISO
-        if: needs.trust.outputs.trusted == 'true'
-        uses: namespace-actions/download-artifact@7cbad919e4b0e09f17e9d6311a444ff002992b5b # v2.0.1
-        with:
-          name: iso-${{ github.run_id }}-x86_64
-
-      - name: Fetch the ISO (GitHub's runner)
-        if: needs.trust.outputs.trusted != 'true'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: iso-${{ github.run_id }}-x86_64

@@ -79,6 +79,8 @@ jobs:
             bot) case "$AUTHOR" in 'dependabot[bot]' | 'github-actions[bot]') trusted=true ;; *) trusted=false ;; esac ;;
             *) trusted=false ;;
           esac
+          # Omashiri has no Namespace runners; the GitHub artifact actions are used throughout.
+          trusted=false
           echo "trusted=$trusted" >>"$GITHUB_OUTPUT"
           echo "$AUTHOR: $STATUS, trusted=$trusted" | tee -a "$GITHUB_STEP_SUMMARY"
 
@@ -90,7 +92,7 @@ jobs:
   build-x86_64:
     name: "x86_64: build the ISO"
     needs: trust
-    runs-on: ${{ needs.trust.outputs.trusted != 'true' && 'ubuntu-26.04' || 'namespace-profile-linux-amd64-16x32' }}
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 60
     env:
       ARCH: x86_64
@@ -168,7 +170,7 @@ jobs:
   install:
     name: "x86_64: ${{ matrix.variant }}"
     needs: [trust, build-x86_64]
-    runs-on: ${{ needs.trust.outputs.trusted != 'true' && 'ubuntu-26.04' || 'namespace-profile-linux-amd64-16x32' }}
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 120
     strategy:
       fail-fast: false
@@ -439,7 +441,7 @@ jobs:
   free-space:
     name: "x86_64: free-space install"
     needs: [trust, build-x86_64]
-    runs-on: ${{ needs.trust.outputs.trusted != 'true' && 'ubuntu-26.04' || 'namespace-profile-linux-amd64-16x32' }}
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

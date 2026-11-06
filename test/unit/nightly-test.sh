@@ -26,6 +26,19 @@ refused() { # description, command...: it has to fail and say why
   [[ -s $tmp/refused.err ]] || fail "$what was refused without a word"
 }
 
+workflow="$ROOT/.github/workflows/nightly-build.yml"
+if grep -Eq 'publish|secrets\.|RCLONE|BUCKET|environment:|nightly\.omarchy\.org|aria2' "$workflow"; then
+  fail "the nightly workflow contains publishing configuration"
+fi
+equal "nightly jobs only plan and build" \
+  "$(sed -nE 's/^  ([a-z_]+):$/\1/p' "$workflow" | paste -sd' ')" "workflow_dispatch plan build"
+for retained in 'gpg --homedir' './test/integration release/*.iso' \
+  './test/vm-image/vm-seal' './test/vm-image/vm-verify' './test/vm-image/vm-boot' \
+  './test/vm-image/nightly-layout' 'path: out/' 'vm-verify.txt' 'vm-packages.txt' \
+  'retention-days: 2' 'retention-days: 14' 'if: always()'; do
+  grep -Fq "$retained" "$workflow" || fail "nightly workflow lost $retained"
+done
+
 # ---------------------------------------------------------------- nightly-plan
 planned() { "$plan" "$@" 2>/dev/null; }
 

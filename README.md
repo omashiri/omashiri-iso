@@ -54,7 +54,9 @@ The installer's catalogs live in `configs/airootfs/usr/share/omarchy-iso/i18n/`.
 
 ## Releases
 
-The upstream release, signing and upload scripts were removed because they targeted Omarchy's signing key and storage. Omashiri has no release pipeline yet; the nightly workflow still names Omarchy's bucket, so its schedule is off and it only runs by hand.
+The upstream release, signing and upload scripts were removed because they targeted Omarchy's signing key and storage. Omashiri has no release pipeline, publishing storage or signing key configured.
+
+The nightly workflow runs only by hand and builds/tests the edge ISO and the latest upstream Omarchy stable ISO, including verification of the stable ISO's signature with the upstream public key. It retains checked images and checksums as GitHub Actions artifacts for 2 days, and install logs and VM verification results for 14 days. It has no publishing input, publish job or bucket credentials. The inherited `latest.json` metadata still contains Omarchy URLs; those URLs do not identify hosted Omashiri artifacts. Download this workflow's outputs from its Actions run.
 
 ## License
 

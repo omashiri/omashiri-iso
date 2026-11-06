@@ -12,14 +12,4 @@
 #   -github:username reason for denouncement
 #
 # Keep entries sorted alphabetically. Started from omarchy-pkgs' list.
-github:bjarneo
-github:DanWahlin
-github:dhh
-github:f-trycua
-github:HANCORE-linux
-github:kwilczynski
-github:ryanrhughes
-github:scottjones
-github:spencerbull
-github:tcballard
-github:tobi
+github:sysrex

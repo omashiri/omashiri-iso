@@ -35,8 +35,7 @@ build=$run
 [[ $attempt == 1 ]] || build+=.$attempt
 
 channels=$(jq -cn --arg v "$date.$build" '[
-  {channel: "edge", arch: "x86_64", version: $v, release: "edge/\($v)"},
-  {channel: "edge-aarch64", arch: "aarch64", version: $v, release: "edge-aarch64/\($v)"}
+  {channel: "edge", arch: "x86_64", version: $v, release: "edge/\($v)"}
 ]')
 if [[ $event == schedule && $published == "$stable" ]]; then
   echo "nightly-plan: stable $stable is already published" >&2

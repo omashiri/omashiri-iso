@@ -30,11 +30,9 @@ refused() { # description, command...: it has to fail and say why
 planned() { "$plan" "$@" 2>/dev/null; }
 
 first=$(planned 2026.10.09 431 1 schedule v4.0.4 "")
-equal "a first run makes every lane" "$(jq -r 'map(.channel) | join(",")' <<<"$first")" "edge,edge-aarch64,stable"
+equal "a first run makes every lane" "$(jq -r 'map(.channel) | join(",")' <<<"$first")" "edge,stable"
 lane() { jq -r --arg c "$1" ".[] | select(.channel == \$c) | $2" <<<"$3"; }
-equal "each lane says its architecture" "$(jq -r 'map(.arch) | join(",")' <<<"$first")" "x86_64,aarch64,x86_64"
-equal "the aarch64 lane has the edge version" "$(lane edge-aarch64 .version "$first")" "2026.10.09.431"
-equal "the aarch64 path" "$(lane edge-aarch64 .release "$first")" "edge-aarch64/2026.10.09.431"
+equal "each lane says its architecture" "$(jq -r 'map(.arch) | join(",")' <<<"$first")" "x86_64,x86_64"
 equal "the edge version" "$(jq -r '.[0].version' <<<"$first")" "2026.10.09.431"
 equal "the edge path" "$(jq -r '.[0].release' <<<"$first")" "edge/2026.10.09.431"
 equal "the stable version is the release's" "$(lane stable .version "$first")" "4.0.4"
@@ -47,11 +45,11 @@ equal "a run started again has its own stable path" "$(lane stable .release "$ag
   fail "two attempts of one run share a path"
 
 equal "a published release is left out of a scheduled run" \
-  "$(planned 2026.10.09 432 1 schedule v4.0.4 4.0.4 | jq -r 'map(.channel) | join(",")')" "edge,edge-aarch64"
+  "$(planned 2026.10.09 432 1 schedule v4.0.4 4.0.4 | jq -r 'map(.channel) | join(",")')" "edge"
 equal "a new release is made on the next scheduled run" \
   "$(lane stable .version "$(planned 2026.10.09 432 1 schedule v4.0.5 4.0.4)")" "4.0.5"
 equal "a manual run makes a published release again" \
-  "$(planned 2026.10.09 432 1 workflow_dispatch v4.0.4 4.0.4 | jq -r 'map(.channel) | join(",")')" "edge,edge-aarch64,stable"
+  "$(planned 2026.10.09 432 1 workflow_dispatch v4.0.4 4.0.4 | jq -r 'map(.channel) | join(",")')" "edge,stable"
 
 refused "a release tag that is not a version" "$plan" 2026.10.09 431 1 schedule nightly ""
 refused "an empty release tag" "$plan" 2026.10.09 431 1 schedule "" ""

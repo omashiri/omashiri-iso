@@ -34,10 +34,10 @@ isos=$(sed -nE 's/^ *name: (iso-.*)$/\1/p' "$WORKFLOW")
 # jobs' in the architecture itself.
 # One name, which a runner's own artifact step (Namespace's or GitHub's)
 # may upload under.
-upload=$(grep -vE -- '-(x86_64|aarch64)$' <<<"$isos" | sort -u) || fail "the build uploads no per-architecture ISO artifact"
+upload=$(grep -vE -- '-x86_64$' <<<"$isos" | sort -u) || fail "the build uploads no per-architecture ISO artifact"
 [[ $(grep -c "" <<<"$upload") == 1 ]] || fail "more than one ISO upload name: $upload"
 grep -F 'run_attempt' <<<"$isos" && fail "an ISO artifact name carries the attempt, which a partial re-run's install jobs never find"
-for arch in x86_64 aarch64; do
+for arch in x86_64; do
   want=${upload%-*}-$arch
   grep -Fxq "$want" <<<"$isos" || fail "no install job fetches $want, the ISO the $arch build uploads"
 done
@@ -61,7 +61,7 @@ awk '
 # Every test-result artifact keeps the run and the attempt, as the comment
 # workflow reads them.
 results=$(sed -nE 's/^ *name: (install-test-.*)$/\1/p' "$WORKFLOW")
-[[ $(grep -c "" <<<"$results") == 2 ]] || fail "expected the x86_64 and aarch64 result artifacts, found: $results"
+[[ $(grep -c "" <<<"$results") == 1 ]] || fail "expected the x86_64 result artifact, found: $results"
 while read -r name; do
   [[ $name == *'${{ github.run_id }}-${{ github.run_attempt }}-'* ]] || fail "result artifact $name does not carry its run and attempt"
 done <<<"$results"
@@ -75,7 +75,7 @@ grep -Fq -- '-p "install-test-$RUN_ID-$ATTEMPT*"' "$ROOT/.github/workflows/insta
 job_of() {
   awk -v job="$1" '/^  [A-Za-z0-9_-]+:/ { keep = ($0 == "  " job ":") } keep' "$WORKFLOW"
 }
-for arch in x86_64 aarch64; do
+for arch in x86_64; do
   job_of "build-$arch" | grep -Eq "^      ARCH: $arch\$" || fail "no build-$arch job builds the $arch ISO"
   fetchers=0
   for job in $(sed -nE 's/^  ([A-Za-z0-9_-]+):$/\1/p' "$WORKFLOW"); do

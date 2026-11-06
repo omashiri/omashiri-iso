@@ -35,7 +35,7 @@ echo "ok - a [core] that is not an Omarchy mirror stops the build"
 # On x86_64 the channel's mirror goes first in the container's mirrorlist and
 # the image's own mirrors stay after it, the fallback the online configuration
 # reaches through its Include. It happens before the first pacman call.
-x86=$(sed -n '/^else$/,/^fi$/p' "$builder" | sed -n '1,/pacman --noconfirm -Sy archlinux-keyring/p')
+x86=$(sed -n '1,/pacman --noconfirm -Sy archlinux-keyring/p' "$builder")
 grep -q 'channel_core_server "\$online_pacman_conf"' <<<"$x86" \
   || fail "the x86_64 build container installs its tools from the mirror its image came with"
 mirrorlist="$work/mirrorlist"

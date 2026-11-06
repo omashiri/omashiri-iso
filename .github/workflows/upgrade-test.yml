@@ -38,7 +38,7 @@ env:
 jobs:
   upgrade:
     name: Install, upgrade, reboot
-    runs-on: namespace-profile-linux-amd64-16x32
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 60
     outputs:
       from: ${{ steps.release.outputs.version }}

@@ -52,9 +52,9 @@ The ISO installs itself with no keyboard when it finds its configuration on a se
 
 The installer's catalogs live in `configs/airootfs/usr/share/omarchy-iso/i18n/`. Add a string to `en.json` and print it with `t <key> [args]`. `test/unit/test_installer_i18n.py` checks keys, placeholders and font coverage.
 
-## Release, signing and upload
+## Releases
 
-`bin/omarchy-iso-release`, `omarchy-iso-sign` and `omarchy-iso-upload` are inherited from upstream and still target Omarchy's signing key and storage. They are not usable for Omashiri releases until Omashiri has its own.
+The upstream release, signing and upload scripts were removed because they targeted Omarchy's signing key and storage. Omashiri has no release pipeline yet; the nightly workflow still names Omarchy's bucket, so its schedule is off and it only runs by hand.
 
 ## License
 

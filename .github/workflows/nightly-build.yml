@@ -31,8 +31,6 @@ name: Nightly ISO Build
 # builds and checks everything and publishes nothing.
 
 on:
-  schedule:
-    - cron: "1 0 * * *" # Daily at 00:01 UTC
   workflow_dispatch:
     inputs:
       publish:

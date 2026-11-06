@@ -32,8 +32,6 @@ steps_of() {
 isos=$(sed -nE 's/^ *name: (iso-.*)$/\1/p' "$WORKFLOW")
 # The build's own name ends in its architecture's expression, the install
 # jobs' in the architecture itself.
-# One name, which a runner's own artifact step (Namespace's or GitHub's)
-# may upload under.
 upload=$(grep -vE -- '-x86_64$' <<<"$isos" | sort -u) || fail "the build uploads no per-architecture ISO artifact"
 [[ $(grep -c "" <<<"$upload") == 1 ]] || fail "more than one ISO upload name: $upload"
 grep -F 'run_attempt' <<<"$isos" && fail "an ISO artifact name carries the attempt, which a partial re-run's install jobs never find"
@@ -42,21 +40,17 @@ for arch in x86_64; do
   grep -Fxq "$want" <<<"$isos" || fail "no install job fetches $want, the ISO the $arch build uploads"
 done
 uploads=$(steps_of "$upload")
-[[ $(grep -c '^--$' <<<"$uploads") -ge 1 ]] || fail "no step uploads $upload"
+[[ $(grep -c '^--$' <<<"$uploads") == 1 ]] || fail "expected one step to upload $upload"
 [[ $(grep -cE '^ *overwrite: true$' <<<"$uploads") == $(grep -c '^--$' <<<"$uploads") ]] \
   || fail "an ISO upload step cannot replace its ISO when a build runs again"
 
-# Namespace's artifact actions only work on Namespace's runners. A step that
-# uses one runs only for a trusted author, or in a job that is on Namespace
-# whoever the author is; GitHub's runner keeps GitHub's actions.
-awk '
-  /^  [A-Za-z0-9_-]+:$/ { job = $1; ns = 0 }
-  /^    runs-on: namespace-profile-/ { ns = 1 }
-  match($0, /^ *- /) { trusted = 0 }
-  /^ *if: needs\.trust\.outputs\.trusted == .true.$/ { trusted = 1 }
-  /^ *(- )?uses: namespace-actions\// && !trusted && !ns { print job " " $0; bad = 1 }
-  END { exit bad }
-' "$WORKFLOW" || fail "a Namespace artifact step can run on GitHub's runner (above)"
+# GitHub's runners always use GitHub's artifact storage, regardless of author.
+grep -Eq '^ *uses: actions/upload-artifact@' <<<"$uploads" || fail "the ISO upload does not use GitHub's artifact action"
+grep -Eq '^ *if:' <<<"$uploads" && fail "the ISO upload is conditional"
+for setting in 'release/*.iso' 'test-runs/build-seconds' 'compression-level: 0' 'retention-days: 7'; do
+  grep -Fxq "          $setting" <<<"$uploads" || grep -Fxq "            $setting" <<<"$uploads" \
+    || fail "the ISO upload lacks $setting"
+done
 
 # Every test-result artifact keeps the run and the attempt, as the comment
 # workflow reads them.
@@ -87,5 +81,9 @@ for arch in x86_64; do
     [[ $builds == "build-$arch" ]] || fail "$job fetches the $arch ISO but waits for ${builds:-no build}, not only build-$arch (needs: $needs)"
   done
   ((fetchers > 0)) || fail "no install job fetches the $arch ISO"
+  downloads=$(steps_of "iso-\${{ github.run_id }}-$arch")
+  [[ $(grep -c '^--$' <<<"$downloads") == "$fetchers" ]] || fail "expected one ISO download per install job"
+  [[ $(grep -cE '^ *uses: actions/download-artifact@' <<<"$downloads") == "$fetchers" ]] || fail "an ISO download does not use GitHub's artifact action"
+  grep -Eq '^ *if:' <<<"$downloads" && fail "an ISO download is conditional"
 done
 echo "install test artifact names passed"

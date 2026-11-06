@@ -14,9 +14,9 @@ while [[ $# -gt 0 ]]; do
   --arch)
     OMARCHY_ARCH="${2:-}"
     case "$OMARCHY_ARCH" in
-    x86_64|aarch64) ;;
+    x86_64) ;;
     *)
-      echo "Error: --arch must be x86_64 or aarch64" >&2
+      echo "Error: --arch must be x86_64 (aarch64 was removed from this repo)" >&2
       exit 1
       ;;
     esac

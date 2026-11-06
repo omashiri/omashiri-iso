@@ -238,25 +238,6 @@ if [[ $OMARCHY_ARCH == aarch64 ]]; then
   # The N1x firmware's SPCR serial console would take the console from the
   # panel, hence console=tty0 acpi=nospcr.
   kernel_options="console=tty0 acpi=nospcr initramfs_async=0"
-  # Snapdragon firmware hands the kernel no device tree. Once the live kernel
-  # and initramfs exist, wrap them in a UKI that carries the device trees the
-  # kernel package ships; GRUB chainloads it where there is one
-  # (configs/grub/grub.cfg).
-  install -Dm0644 /builder/qualcomm/live-uki.sh "$build_cache_dir/airootfs/root/qualcomm-live-uki.sh"
-  # Into the live root's customize_airootfs.sh, ahead of its pruning of the
-  # mirror, which can end the script early.
-  customize="$build_cache_dir/airootfs/root/customize_airootfs.sh"
-  grep -qx 'set -euo pipefail' "$customize" || { echo "ERROR: $customize has no 'set -euo pipefail' line to start after" >&2; exit 1; }
-  sed -i "0,/^set -euo pipefail\$/s||set -euo pipefail\\n\\n# The Snapdragon laptops' live UKI.\\nbash /root/qualcomm-live-uki.sh $OMARCHY_KERNEL\\nrm -f /root/qualcomm-live-uki.sh|" "$customize"
-  # Keep the existing late-start path when early firmware is unavailable.
-  install -Dm0755 /builder/qualcomm/omarchy-live-dsp "$build_cache_dir/airootfs/usr/local/bin/omarchy-live-dsp"
-  install -Dm0644 /builder/qualcomm/omarchy-live-dsp.service "$build_cache_dir/airootfs/etc/systemd/system/omarchy-live-dsp.service"
-  mkdir -p "$build_cache_dir/airootfs/etc/systemd/system/multi-user.target.wants"
-  ln -sf /etc/systemd/system/omarchy-live-dsp.service "$build_cache_dir/airootfs/etc/systemd/system/multi-user.target.wants/omarchy-live-dsp.service"
-  printf '%s\n' 'file_permissions["/usr/local/bin/omarchy-live-dsp"]="0:0:755"' >>"$build_cache_dir/profiledef.sh"
-  install -Dm0755 /builder/qualcomm/early-startup-install "$build_cache_dir/airootfs/usr/lib/initcpio/install/qcom_early_startup"
-  install -Dm0755 /builder/qualcomm/early-startup "$build_cache_dir/airootfs/usr/lib/initcpio/hooks/qcom_early_startup"
-  install -Dm0644 /builder/qualcomm/early-firmware.py "$build_cache_dir/airootfs/usr/lib/initcpio/qcom-early-firmware.py"
   rm -rf "$build_cache_dir/syslinux" "$build_cache_dir/efiboot"
 else
   boot_splash_kernel_options="quiet splash "
@@ -270,25 +251,6 @@ for grub_config in "$build_cache_dir/grub/grub.cfg" "$build_cache_dir/grub/loopb
     -e "s|%KERNEL_OPTIONS%|$kernel_options|g" \
     "$grub_config"
 done
-if [[ $OMARCHY_ARCH == aarch64 ]]; then
-  # The live system's name on the network (releng's Ethernet DHCP with mDNS).
-  printf '%s\n' omarchy-n1x-rescue >"$build_cache_dir/airootfs/etc/hostname"
-fi
-if [[ -n ${OMARCHY_N1X_DEV_SSH:-} ]]; then
-  # DEV ONLY (--dev-ssh): key-only SSH into the live ISO and the installed
-  # system. See builder/n1x-dev-ssh/omarchy-n1x-dev-ssh; removing that
-  # directory and this block removes it.
-  if [[ $OMARCHY_ARCH != aarch64 ]]; then
-    echo "ERROR: --dev-ssh is only for aarch64 images" >&2
-    exit 1
-  fi
-  install -Dm0755 /builder/n1x-dev-ssh/omarchy-n1x-dev-ssh "$build_cache_dir/airootfs/usr/local/sbin/omarchy-n1x-dev-ssh"
-  install -Dm0644 /dev-ssh/authorized_keys "$build_cache_dir/airootfs/usr/local/share/omarchy-n1x-dev-ssh/authorized_keys"
-  install -Dm0644 /builder/n1x-dev-ssh/omarchy-n1x-dev-ssh.service "$build_cache_dir/airootfs/etc/systemd/system/omarchy-n1x-dev-ssh.service"
-  mkdir -p "$build_cache_dir/airootfs/etc/systemd/system/multi-user.target.wants"
-  ln -sf /etc/systemd/system/omarchy-n1x-dev-ssh.service "$build_cache_dir/airootfs/etc/systemd/system/multi-user.target.wants/omarchy-n1x-dev-ssh.service"
-  printf '%s\n' 'file_permissions["/usr/local/sbin/omarchy-n1x-dev-ssh"]="0:0:755"' >>"$build_cache_dir/profiledef.sh"
-fi
 cat > "$build_cache_dir/airootfs/usr/share/omarchy-iso/package-targets" <<EOF
 OMARCHY_RUNTIME_PACKAGE=$OMARCHY_RUNTIME_PACKAGE
 OMARCHY_SETTINGS_PACKAGE=$OMARCHY_SETTINGS_PACKAGE

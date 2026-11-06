@@ -2,7 +2,7 @@
 
 The installer image for Omashiri, a small headless Linux server distribution. It is a fork of [omacom/omarchy-iso](https://github.com/omacom/omarchy-iso), kept as a fork so upstream kernel, boot and pipeline fixes can still be pulled. This repo builds x86_64 images only.
 
-The ISO boots to a console installer, writes a pre-built Arch Linux root image (a zstd-compressed btrfs partition image) onto the target with `zstdcat | dd`, installs the per-machine packages from the bundled mirror, runs target setup in a chroot, creates the user, and provisions it. The installed system comes up headless and is reached over SSH.
+The ISO boots to a console installer, writes a pre-built Arch Linux root image (a zstd-compressed btrfs partition image) onto the target with `zstdcat | dd`, installs the per-machine packages from the bundled mirror, runs target setup in a chroot, creates the user, and provisions it. A headless system reachable over SSH is the target; the current builder still selects upstream desktop manifests and a runtime package with desktop dependencies. A server-capable runtime package and aligned builder/installer manifest selection are required before this produces a server-only image.
 
 Status: work in progress. The package list, ISO wiring and validation are tracked in [omashiri/omashiri](https://github.com/omashiri/omashiri/issues). The product definition is `plans/omashiri.md` in that repo.
 

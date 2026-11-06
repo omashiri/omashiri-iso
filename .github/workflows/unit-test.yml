@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   unit:
-    runs-on: ubuntu-26.04
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 10
     steps:
       # The archiso submodule too: the aarch64 build test checks that the

@@ -43,7 +43,6 @@ class InstallDiskReleaseTest(unittest.TestCase):
         self.arch = mock.Mock()
         patches = [
             mock.patch.object(phases_impl, "arch", self.arch, create=True),
-            mock.patch.object(phases_impl, "_stage_qualcomm_firmware"),
         ]
         for patch in patches:
             patch.start()

@@ -244,29 +244,7 @@ def _root_image_required_packages() -> list[str]:
 # imports it, so no patching happens here.
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Stage vendor-signed Qualcomm firmware before the Windows partition is removed.
-LIVE_FIRMWARE_STAGE = Path("/run/omarchy/firmware")
-TARGET_FIRMWARE_STAGE = Path("var/lib/omarchy/firmware-stage")
-
-
-def _stage_qualcomm_firmware() -> None:
-    tool = shutil.which("qcom-firmware-extract")
-    if not tool:
-        return
-    info("› saving Qualcomm firmware from Windows before the disk is written")
-    # Firmware extraction is idempotent and optional.
-    subprocess.run([tool, "--stage", str(LIVE_FIRMWARE_STAGE)], check=False)
-
-
-def _copy_firmware_stage_into_target(ctx: InstallContext) -> None:
-    if not (LIVE_FIRMWARE_STAGE / "manifest").is_file():
-        return
-    dst = ctx.target / TARGET_FIRMWARE_STAGE
-    shutil.copytree(LIVE_FIRMWARE_STAGE, dst, dirs_exist_ok=True)
-
-
 def prepare_live(ctx: InstallContext) -> None:
-    _stage_qualcomm_firmware()
     if ctx.is_protected:
         info("› protected mode: skipping whole-disk cleanup")
     else:
@@ -2234,8 +2212,6 @@ def _prepare_target_setup(ctx: InstallContext) -> None:
             ctx.state["bind_mounts"].append(str(target_dst))
             mounted.add(str(target_dst))
 
-    _copy_firmware_stage_into_target(ctx)
-
     ctx.state["target_setup_prepared"] = True
 
 
@@ -3097,17 +3073,6 @@ def configure_ssh_access(ctx: InstallContext) -> None:
     text = rules.read_text() if rules.exists() else ""
     if "--dport 22 -j ACCEPT" not in text:
         raise RuntimeError(f"ufw did not record an allow rule for port 22 in {rules}")
-
-
-# DEV ONLY (N1x bring-up): only the N1x development ISO carries this script
-# (builder/n1x-dev-ssh), and build_phases lists this phase only when it is
-# there. It authorizes the development key for root on the installed system.
-DEV_SSH_SCRIPT = Path("/usr/local/sbin/omarchy-n1x-dev-ssh")
-
-
-def configure_dev_ssh(ctx: InstallContext) -> None:
-    info("› DEV ONLY: authorizing the N1x development SSH key for root")
-    subprocess.run([str(DEV_SSH_SCRIPT), "--target", str(ctx.target)], check=True)
 
 
 def _authorized_keys(path: Path) -> list[str]:

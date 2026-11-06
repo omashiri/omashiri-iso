@@ -140,7 +140,7 @@ jobs:
     name: Report
     needs: upgrade
     if: ${{ !cancelled() }}
-    runs-on: ubuntu-26.04
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 10
     permissions:
       contents: write

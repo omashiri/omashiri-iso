@@ -51,7 +51,7 @@ jobs:
   # Actions, "Approval for running fork pull request workflows").
   trust:
     name: "Is the author trusted to use our runners"
-    runs-on: ubuntu-26.04
+    runs-on: [self-hosted, Linux, X64]
     outputs:
       trusted: ${{ steps.gate.outputs.trusted }}
     steps:

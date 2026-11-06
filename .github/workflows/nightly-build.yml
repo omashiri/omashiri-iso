@@ -79,7 +79,7 @@ jobs:
       matrix:
         include: ${{ fromJSON(needs.plan.outputs.channels) }}
     # aarch64 runs on Linux on Apple Silicon: the ARM runners that have KVM.
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-26.04
     timeout-minutes: 90
     env:
       CHANNEL: ${{ matrix.channel }}

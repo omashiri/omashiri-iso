@@ -92,7 +92,7 @@ jobs:
   build-x86_64:
     name: "x86_64: build the ISO"
     needs: trust
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-26.04
     timeout-minutes: 60
     env:
       ARCH: x86_64
@@ -170,7 +170,7 @@ jobs:
   install:
     name: "x86_64: ${{ matrix.variant }}"
     needs: [trust, build-x86_64]
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     strategy:
       fail-fast: false
@@ -441,7 +441,7 @@ jobs:
   free-space:
     name: "x86_64: free-space install"
     needs: [trust, build-x86_64]
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
